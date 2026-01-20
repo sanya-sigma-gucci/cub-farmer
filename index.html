@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Сбор фигур за минуту | A-Frame Игра</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        body {
+            overflow: hidden;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #game-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        #hud {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 100;
+            pointer-events: none;
+        }
+        
+        .hud-panel {
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 10px;
+            padding: 15px 25px;
+            backdrop-filter: blur(5px);
+            border: 2px solid #00a8ff;
+            box-shadow: 0 0 15px rgba(0, 168, 255, 0.5);
+        }
+        
+        .hud-title {
+            font-size: 14px;
+            color: #00a8ff;
+            margin-bottom: 5px;
+        }
+        
+        .hud-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: white;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            border-radius: 10px;
+            padding: 15px 25px;
+            text-align: center;
+            z-index: 100;
+            max-width: 90%;
+            border: 2px solid #00ff9d;
+            box-shadow: 0 0 15px rgba(0, 255, 157, 0.5);
+        }
+        
+        #instructions h3 {
+            color: #00ff9d;
+            margin-bottom: 10px;
+        }
+        
+        #instructions p {
+            margin-bottom: 5px;
+            color: #cccccc;
+        }
+        
+        #game-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        #game-overlay h2 {
+            font-size: 48px;
+            color: #00a8ff;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(0, 168, 255, 0.7);
+        }
+        
+        #final-score {
+            font-size: 72px;
+            color: #00ff9d;
+            margin-bottom: 30px;
+            text-shadow: 0 0 15px rgba(0, 255, 157, 0.7);
+        }
+        
+        #restart-button {
+            background: linear-gradient(to right, #00a8ff, #00ff9d);
+            border: none;
+            border-radius: 50px;
+            color: #16213e;
+            font-size: 20px;
+            font-weight: bold;
+            padding: 15px 40px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 255, 157, 0.5);
+        }
+        
+        #restart-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(0, 255, 157, 0.8);
+        }
+        
+        .controls-info {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0 10px;
+        }
+        
+        .key {
+            background-color: #333;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            font-weight: bold;
+            border: 1px solid #00a8ff;
+        }
+        
+        #timer.warning {
+            color: #ff9d00;
+            animation: pulse 1s infinite;
+        }
+        
+        #timer.danger {
+            color: #ff2d00;
+            animation: pulse 0.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        #player-info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 10px;
+            padding: 10px;
+            z-index: 100;
+            border: 2px solid #ff9d00;
+            box-shadow: 0 0 10px rgba(255, 157, 0, 0.5);
+        }
+        
+        #player-info p {
+            color: #ff9d00;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="hud">
+            <div class="hud-panel">
+                <div class="hud-title">ОЧКИ</div>
+                <div id="score" class="hud-value">0</div>
+            </div>
+            <div class="hud-panel">
+                <div class="hud-title">ВРЕМЯ</div>
+                <div id="timer" class="hud-value">01:00</div>
+            </div>
+        </div>
+        
+        <div id="instructions">
+            <h3>СОБЕРИТЕ ВСЕ ФИГУРЫ ЗА 1 МИНУТУ!</h3>
+            <p>Управляйте кубом-игроком и собирайте фигуры на поверхности</p>
+            <div class="controls-info">
+                <div class="control-item">
+                    <div class="key">W / ↑</div>
+                    <div>Вперед</div>
+                </div>
+                <div class="control-item">
+                    <div class="key">S / ↓</div>
+                    <div>Назад</div>
+                </div>
+                <div class="control-item">
+                    <div class="key">A / ←</div>
+                    <div>Влево</div>
+                </div>
+                <div class="control-item">
+                    <div class="key">D / →</div>
+                    <div>Вправо</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="player-info">
+            <p>ИГРОК (КУБ)</p>
+        </div>
+        
+        <div id="game-overlay">
+            <h2>ВРЕМЯ ВЫШЛО!</h2>
+            <div>Ваш результат:</div>
+            <div id="final-score">0</div>
+            <button id="restart-button">ИГРАТЬ СНОВА</button>
+        </div>
+        
+        <!-- A-Frame сцена -->
+        <a-scene embedded>
+            <!-- Освещение -->
+            <a-entity light="type: ambient; color: #888"></a-entity>
+            <a-entity light="type: directional; color: #fff; intensity: 0.8" position="-5 10 5"></a-entity>
+            
+            <!-- Игровая поверхность -->
+            <a-plane 
+                position="0 0 0" 
+                rotation="-90 0 0" 
+                width="30" 
+                height="30" 
+                color="#2c3e50"
+                shadow="receive: true">
+            </a-plane>
+            
+            <!-- Игрок (куб) -->
+            <a-box 
+                id="player"
+                position="0 0.5 0" 
+                width="1" 
+                height="1" 
+                depth="1"
+                color="#00a8ff"
+                shadow="cast: true"
+                dynamic-body="mass: 2; linearDamping: 0.5; angularDamping: 0.5">
+                <a-box 
+                    position="0 0 -0.6" 
+                    width="0.2" 
+                    height="0.2" 
+                    depth="0.2"
+                    color="#ff9d00">
+                </a-box>
+            </a-box>
+            
+            <!-- Камера -->
+            <a-entity id="camera" position="0 10 10" rotation="-45 0 0">
+                <a-camera look-controls="enabled: false" wasd-controls="enabled: false"></a-camera>
+            </a-entity>
+            
+            <!-- Случайные фигуры для сбора будут созданы через JavaScript -->
+        </a-scene>
+    </div>
+
+    <script>
+        // Игровые переменные
+        let score = 0;
+        let timeLeft = 60; // 1 минута в секундах
+        let gameActive = true;
+        let collectedShapes = 0;
+        let totalShapes = 20;
+        let timerInterval;
+        
+        // Ссылки на DOM элементы
+        const scoreElement = document.getElementById('score');
+        const timerElement = document.getElementById('timer');
+        const gameOverlay = document.getElementById('game-overlay');
+        const finalScoreElement = document.getElementById('final-score');
+        const restartButton = document.getElementById('restart-button');
+        const player = document.getElementById('player');
+        const scene = document.querySelector('a-scene');
+        
+        // Создаем фигуры для сбора
+        function createShapes() {
+            const shapeTypes = ['sphere', 'cylinder', 'cone', 'torus', 'octahedron'];
+            const colors = ['#ff4757', '#2ed573', '#ffa502', '#3742fa', '#a55eea', '#ff6b81', '#1e90ff'];
+            
+            for (let i = 0; i < totalShapes; i++) {
+                // Случайная позиция на поверхности
+                const x = Math.random() * 24 - 12; // от -12 до 12
+                const z = Math.random() * 24 - 12; // от -12 до 12
+                
+                // Случайный тип фигуры
+                const shapeType = shapeTypes[Math.floor(Math.random() * shapeTypes.length)];
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                
+                // Создаем фигуру
+                let shape;
+                if (shapeType === 'sphere') {
+                    shape = document.createElement('a-sphere');
+                    shape.setAttribute('radius', '0.5');
+                } else if (shapeType === 'cylinder') {
+                    shape = document.createElement('a-cylinder');
+                    shape.setAttribute('radius', '0.5');
+                    shape.setAttribute('height', '1');
+                } else if (shapeType === 'cone') {
+                    shape = document.createElement('a-cone');
+                    shape.setAttribute('radius-bottom', '0.5');
+                    shape.setAttribute('radius-top', '0');
+                    shape.setAttribute('height', '1');
+                } else if (shapeType === 'torus') {
+                    shape = document.createElement('a-torus');
+                    shape.setAttribute('radius', '0.5');
+                    shape.setAttribute('radius-tubular', '0.1');
+                } else {
+                    shape = document.createElement('a-octahedron');
+                    shape.setAttribute('radius', '0.5');
+                }
+                
+                // Общие атрибуты
+                shape.setAttribute('position', `${x} 0.5 ${z}`);
+                shape.setAttribute('color', color);
+                shape.setAttribute('shadow', 'cast: true');
+                shape.setAttribute('class', 'collectible');
+                shape.setAttribute('data-collected', 'false');
+                
+                // Анимация вращения
+                shape.setAttribute('animation', {
+                    property: 'rotation',
+                    to: '0 360 0',
+                    loop: true,
+                    dur: 5000 + Math.random() * 10000,
+                    easing: 'linear'
+                });
+                
+                // Анимация подпрыгивания
+                shape.setAttribute('animation__2', {
+                    property: 'position',
+                    to: `${x} ${0.5 + Math.random() * 0.5} ${z}`,
+                    dir: 'alternate',
+                    loop: true,
+                    dur: 1000 + Math.random() * 2000,
+                    easing: 'easeInOutSine'
+                });
+                
+                scene.appendChild(shape);
+            }
+        }
+        
+        // Проверка столкновений
+        function checkCollisions() {
+            if (!gameActive) return;
+            
+            const playerPos = player.getAttribute('position');
+            const collectibles = document.querySelectorAll('.collectible');
+            
+            collectibles.forEach(collectible => {
+                if (collectible.getAttribute('data-collected') === 'true') return;
+                
+                const collectiblePos = collectible.getAttribute('position');
+                
+                // Рассчитываем расстояние между игроком и фигурой
+                const distance = Math.sqrt(
+                    Math.pow(playerPos.x - collectiblePos.x, 2) +
+                    Math.pow(playerPos.z - collectiblePos.z, 2)
+                );
+                
+                // Если расстояние меньше 1.5, считаем что фигура собрана
+                if (distance < 1.5) {
+                    collectible.setAttribute('data-collected', 'true');
+                    
+                    // Анимация исчезновения
+                    collectible.setAttribute('animation', {
+                        property: 'scale',
+                        to: '0 0 0',
+                        dur: 300,
+                        easing: 'easeInCubic'
+                    });
+                    
+                    // Удаляем фигуру через 300 мс
+                    setTimeout(() => {
+                        if (collectible.parentNode) {
+                            collectible.parentNode.removeChild(collectible);
+                        }
+                    }, 300);
+                    
+                    // Увеличиваем счет
+                    score++;
+                    collectedShapes++;
+                    scoreElement.textContent = score;
+                    
+                    // Воспроизводим звук сбора (если бы был добавлен звуковой компонент)
+                    
+                    // Создаем эффект частиц при сборе
+                    createParticles(collectiblePos);
+                    
+                    // Если собраны все фигуры, создаем новые
+                    if (collectedShapes >= totalShapes) {
+                        setTimeout(() => {
+                            createShapes();
+                            collectedShapes = 0;
+                        }, 500);
+                    }
+                }
+            });
+        }
+        
+        // Создание эффекта частиц при сборе фигуры
+        function createParticles(position) {
+            for (let i = 0; i < 10; i++) {
+                const particle = document.createElement('a-sphere');
+                particle.setAttribute('radius', '0.1');
+                particle.setAttribute('color', '#00ff9d');
+                particle.setAttribute('position', position);
+                
+                // Случайное направление
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 0.05 + Math.random() * 0.1;
+                const vx = Math.cos(angle) * speed;
+                const vz = Math.sin(angle) * speed;
+                
+                scene.appendChild(particle);
+                
+                // Анимация частицы
+                let x = position.x;
+                let z = position.z;
+                let y = position.y;
+                let opacity = 1;
+                
+                const animateParticle = () => {
+                    x += vx;
+                    z += vz;
+                    y += 0.02;
+                    opacity -= 0.02;
+                    
+                    particle.setAttribute('position', {x, y, z});
+                    particle.setAttribute('opacity', opacity);
+                    
+                    if (opacity > 0) {
+                        requestAnimationFrame(animateParticle);
+                    } else {
+                        if (particle.parentNode) {
+                            particle.parentNode.removeChild(particle);
+                        }
+                    }
+                };
+                
+                requestAnimationFrame(animateParticle);
+            }
+        }
+        
+        // Обновление таймера
+        function updateTimer() {
+            if (!gameActive) return;
+            
+            timeLeft--;
+            
+            // Форматирование времени
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerElement.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // Изменение цвета таймера при малом времени
+            if (timeLeft <= 10) {
+                timerElement.classList.add('danger');
+            } else if (timeLeft <= 30) {
+                timerElement.classList.add('warning');
+            }
+            
+            // Проверка окончания времени
+            if (timeLeft <= 0) {
+                endGame();
+            }
+        }
+        
+        // Завершение игры
+        function endGame() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            
+            // Показываем оверлей с результатом
+            finalScoreElement.textContent = score;
+            gameOverlay.style.display = 'flex';
+        }
+        
+        // Перезапуск игры
+        function restartGame() {
+            // Сброс переменных
+            score = 0;
+            timeLeft = 60;
+            gameActive = true;
+            collectedShapes = 0;
+            
+            // Сброс UI
+            scoreElement.textContent = score;
+            timerElement.textContent = '01:00';
+            timerElement.classList.remove('warning', 'danger');
+            gameOverlay.style.display = 'none';
+            
+            // Удаление всех фигур
+            const collectibles = document.querySelectorAll('.collectible');
+            collectibles.forEach(collectible => {
+                if (collectible.parentNode) {
+                    collectible.parentNode.removeChild(collectible);
+                }
+            });
+            
+            // Создание новых фигур
+            createShapes();
+            
+            // Сброс позиции игрока
+            player.setAttribute('position', '0 0.5 0');
+            
+            // Перезапуск таймера
+            clearInterval(timerInterval);
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+        
+        // Управление игроком
+        function initPlayerControls() {
+            const playerSpeed = 0.2;
+            const keys = {};
+            
+            // Отслеживание нажатий клавиш
+            document.addEventListener('keydown', (e) => {
+                keys[e.key.toLowerCase()] = true;
+            });
+            
+            document.addEventListener('keyup', (e) => {
+                keys[e.key.toLowerCase()] = false;
+            });
+            
+            // Обновление позиции игрока
+            function updatePlayerPosition() {
+                if (!gameActive) return;
+                
+                const playerPos = player.getAttribute('position');
+                let newX = playerPos.x;
+                let newZ = playerPos.z;
+                
+                // Движение вперед/назад
+                if (keys['w'] || keys['arrowup']) {
+                    newZ -= playerSpeed;
+                }
+                if (keys['s'] || keys['arrowdown']) {
+                    newZ += playerSpeed;
+                }
+                
+                // Движение влево/вправо
+                if (keys['a'] || keys['arrowleft']) {
+                    newX -= playerSpeed;
+                }
+                if (keys['d'] || keys['arrowright']) {
+                    newX += playerSpeed;
+                }
+                
+                // Ограничение движения в пределах игровой области
+                newX = Math.max(-14, Math.min(14, newX));
+                newZ = Math.max(-14, Math.min(14, newZ));
+                
+                player.setAttribute('position', {x: newX, y: playerPos.y, z: newZ});
+                
+                // Поворот игрока в направлении движения
+                if (keys['w'] || keys['s'] || keys['a'] || keys['d'] || 
+                    keys['arrowup'] || keys['arrowdown'] || keys['arrowleft'] || keys['arrowright']) {
+                    
+                    let angle = 0;
+                    if (keys['w'] || keys['arrowup']) angle = 0;
+                    if (keys['s'] || keys['arrowdown']) angle = 180;
+                    if (keys['a'] || keys['arrowleft']) angle = 90;
+                    if (keys['d'] || keys['arrowright']) angle = -90;
+                    
+                    // Комбинированные направления
+                    if ((keys['w'] || keys['arrowup']) && (keys['a'] || keys['arrowleft'])) angle = 45;
+                    if ((keys['w'] || keys['arrowup']) && (keys['d'] || keys['arrowright'])) angle = -45;
+                    if ((keys['s'] || keys['arrowdown']) && (keys['a'] || keys['arrowleft'])) angle = 135;
+                    if ((keys['s'] || keys['arrowdown']) && (keys['d'] || keys['arrowright'])) angle = -135;
+                    
+                    player.setAttribute('rotation', {x: 0, y: angle, z: 0});
+                }
+                
+                // Проверка столкновений
+                checkCollisions();
+                
+                // Продолжаем обновление
+                requestAnimationFrame(updatePlayerPosition);
+            }
+            
+            // Запуск цикла обновления
+            updatePlayerPosition();
+        }
+        
+        // Инициализация игры
+        function initGame() {
+            // Создание фигур
+            createShapes();
+            
+            // Настройка управления
+            initPlayerControls();
+            
+            // Запуск таймера
+            timerInterval = setInterval(updateTimer, 1000);
+            
+            // Назначение обработчика для кнопки перезапуска
+            restartButton.addEventListener('click', restartGame);
+            
+            // Камера следует за игроком
+            const camera = document.querySelector('#camera');
+            const player = document.querySelector('#player');
+            
+            function updateCamera() {
+                if (!gameActive) return;
+                
+                const playerPos = player.getAttribute('position');
+                camera.setAttribute('position', {
+                    x: playerPos.x,
+                    y: 10,
+                    z: playerPos.z + 10
+                });
+                
+                requestAnimationFrame(updateCamera);
+            }
+            
+            updateCamera();
+        }
+        
+        // Запуск игры когда A-Frame загрузится
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initGame);
+        } else {
+            initGame();
+        }
+    </script>
+</body>
+</html>
